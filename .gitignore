@@ -177,3 +177,10 @@ cython_debug/
 *Zone.Identifier
 
 # Datasets
+nltk_data/
+audio_files/
+hmm_models/
+train-clean-100-wav/
+train-clean-100.tar.gz
+*.npy
+*.json

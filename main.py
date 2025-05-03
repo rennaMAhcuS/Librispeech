@@ -5,7 +5,6 @@ This script runs the full ASR pipeline in order:
 2. Train phoneme HMMs
 3. Evaluate/test the trained model
 """
-
 import os
 import sys
 
@@ -17,7 +16,6 @@ from data_preprocess import main as preprocess_main
 from training import main as train_main
 from testing import main as test_main  # You can rename this if needed
 
-
 def main():
     print("📦 Step 1: Preprocessing data...")
     preprocess_main()
@@ -27,9 +25,8 @@ def main():
 
     print("\n🧪 Step 3: Testing and evaluation...")
     acc = test_main()
-
+    
     return acc
-
 
 if __name__ == "__main__":
     main()

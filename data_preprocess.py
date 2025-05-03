@@ -18,10 +18,16 @@ from python_speech_features import mfcc
 from g2p_en import G2p
 import nltk
 
+# Drive Link
+# https://drive.google.com/drive/folders/1WRnzyVkOxhiHAfUU_cUnUyidkpEFoWpW?usp=sharing
+
 # === NLTK Setup ===
+nltk.data.path.append('nltk_data')
 nltk.download('punkt', download_dir='nltk_data')
 nltk.download('averaged_perceptron_tagger_eng', download_dir='nltk_data')
-nltk.data.path.append('nltk_data')
+nltk.download('cmudict', download_dir='nltk_data')  # <-- For CMU Pronouncing Dictionary
+
+from nltk.corpus import cmudict
 
 # === Constants ===
 LIBRISPEECH_URL = "https://www.openslr.org/resources/12/train-clean-100.tar.gz"
@@ -30,7 +36,6 @@ EXTRACT_DIR = "audio_files"
 SOURCE_ROOT = os.path.join(EXTRACT_DIR, "LibriSpeech/train-clean-100")
 WAV_ROOT = "train-clean-100-wav"
 SELECTED_JSON = "selected_files.json"
-TARGET_TIME = 3600
 
 # === File Download ===
 def download_file(url, dest):
@@ -53,30 +58,23 @@ def extract_tar(tar_path, dest_dir):
 
 # === FLAC to WAV Conversion ===
 def convert_flac_to_wav(source_root, wav_root):
-    if not os.path.exists(wav_root):
-        flac_files = glob(os.path.join(source_root, "**/*.flac"), recursive=True)
-        for flac_path in tqdm(flac_files, desc="Converting FLAC to WAV"):
-            rel_path = os.path.relpath(flac_path, source_root).replace('.flac', '.wav')
-            wav_path = os.path.join(wav_root, rel_path)
-            os.makedirs(os.path.dirname(wav_path), exist_ok=True)
-            audio, sr = sf.read(flac_path)
-            sf.write(wav_path, audio, sr)
-    else:
-        print(f"WAV files already exist in: {wav_root}")
+    flac_files = glob(os.path.join(source_root, "**/*.flac"), recursive=True)
+    for flac_path in tqdm(flac_files, desc="Converting FLAC to WAV"):
+        rel_path = os.path.relpath(flac_path, source_root).replace('.flac', '.wav')
+        wav_path = os.path.join(wav_root, rel_path)
+        os.makedirs(os.path.dirname(wav_path), exist_ok=True)
+        audio, sr = sf.read(flac_path)
+        sf.write(wav_path, audio, sr)
 
 # === Copy Transcripts ===
 def copy_transcripts(source_root, wav_root):
-    if not os.path.exists(wav_root):
-        for root, _, files in os.walk(source_root):
-            for file in files:
-                if file.endswith(".trans.txt"):
-                    rel_dir = os.path.relpath(root, source_root)
-                    dest_dir = os.path.join(wav_root, rel_dir)
-                    os.makedirs(dest_dir, exist_ok=True)
-                    shutil.copy(os.path.join(root, file), os.path.join(dest_dir, file))
-    else:
-        print(f"Transcript directory already exists: {wav_root}")
-
+    for root, _, files in os.walk(source_root):
+        for file in files:
+            if file.endswith(".trans.txt"):
+                rel_dir = os.path.relpath(root, source_root)
+                dest_dir = os.path.join(wav_root, rel_dir)
+                os.makedirs(dest_dir, exist_ok=True)
+                shutil.copy(os.path.join(root, file), os.path.join(dest_dir, file))
 
 # === Extract MFCC Features ===
 def extract_mfcc(wav_path, num_mfcc=13):
@@ -182,16 +180,32 @@ def save_for_training(dataset):
     np.save("mfcc_features_concat.npy", X)
     np.save("mfcc_lengths.npy", lengths)
 
+# === Create Inverse Phoneme Dictionary ===
+def create_inverse_phoneme_dict():
+    cmu = cmudict.dict()
+    inverse_dict = {}
+    for word, phoneme_lists in cmu.items():
+        for phonemes in phoneme_lists:
+            clean_phonemes = [re.sub(r'\d', '', p) for p in phonemes]
+            key = " ".join(clean_phonemes)
+            if key not in inverse_dict:
+                inverse_dict[key] = word.lower()
+    with open("inverse_phoneme_dict.json", "w") as f:
+        json.dump(inverse_dict, f)
+    print(f"Saved inverse dictionary with {len(inverse_dict)} entries.")
+
 # === Pipeline Execution ===
 def main():
     download_file(LIBRISPEECH_URL, TAR_PATH)
     extract_tar(TAR_PATH, EXTRACT_DIR)
-    convert_flac_to_wav(SOURCE_ROOT, WAV_ROOT)
-    copy_transcripts(SOURCE_ROOT, WAV_ROOT)
-    
+
+    if not os.path.exists(WAV_ROOT):
+        convert_flac_to_wav(SOURCE_ROOT, WAV_ROOT)
+        copy_transcripts(SOURCE_ROOT, WAV_ROOT)
+
     wav_files = glob(os.path.join(WAV_ROOT, "**/*.wav"), recursive=True)
-    selected = select_files(wav_files, TARGET_TIME)
-    
+    selected = select_files(wav_files)
+
     dataset = build_dataset(selected)
     with open("mfcc_with_phonemes.json", "w") as f:
         json.dump(dataset, f)
@@ -205,6 +219,8 @@ def main():
         json.dump(dataset, f)
 
     save_for_training(dataset)
+
+    create_inverse_phoneme_dict()
     print("Preprocessing complete.")
 
 if __name__ == "__main__":

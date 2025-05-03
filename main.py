@@ -817,19 +817,17 @@ def decode_with_viterbi(phoneme_models, phoneme_sequence, mfcc_seq):
     
     return reduced_predictions
 
+
 # Predict for a single index
+
 def evaluate_utterance(utterance_index, mfcc_path, phoneme_map_path, phoneme_models):
     """
     Evaluate a single utterance from the dataset based on its index.
-    Prints the actual and predicted phonemes, and reports accuracy.
-    
-    Args:
-        utterance_index (int): Index of the utterance to evaluate
-        mfcc_path (str): Path to the MFCC data with phoneme indices
-        phoneme_map_path (str): Path to the phoneme to index mapping
-        phoneme_models (dict): Dictionary of trained HMM models
+    Returns the actual and predicted phoneme sequences and accuracy.
     """
-    # Load data
+    import json
+    import numpy as np
+
     with open(mfcc_path, "r") as f:
         mfcc_data = json.load(f)
     
@@ -838,30 +836,17 @@ def evaluate_utterance(utterance_index, mfcc_path, phoneme_map_path, phoneme_mod
     
     index_to_phoneme = {int(v): k for k, v in phoneme_to_index.items()}
     
-    # Check if the index is valid
     if utterance_index < 0 or utterance_index >= len(mfcc_data):
-        print(f"Error: Index {utterance_index} is out of range. The dataset has {len(mfcc_data)} utterances.")
-        return
+        return f"Error: Index {utterance_index} is out of range. The dataset has {len(mfcc_data)} utterances.", None, None, None
     
-    # Get the utterance data
     utterance = mfcc_data[utterance_index]
     
-    # Extract phoneme indices and MFCC features
     try:
         phoneme_indices = [int(idx) for idx in utterance["phoneme_indices"]]
         mfcc_features = np.array(utterance["mfcc"])
         
-        # Print information about the utterance
-        print(f"\n=== Evaluating Utterance #{utterance_index} ===")
-        print(f"Number of frames: {len(mfcc_features)}")
-        print(f"Number of phonemes: {len(phoneme_indices)}")
-        
-        # Print the actual phoneme sequence
-        print("\nActual phoneme sequence:")
         actual_phonemes = [index_to_phoneme.get(idx, f"Unknown-{idx}") for idx in phoneme_indices]
-        print(" ".join(actual_phonemes))
         
-        # Filter valid models for the phoneme sequence
         valid_models = []
         valid_phoneme_indices = []
         
@@ -873,73 +858,71 @@ def evaluate_utterance(utterance_index, mfcc_path, phoneme_map_path, phoneme_mod
                     valid_phoneme_indices.append(p_idx)
         
         if not valid_models:
-            print("\nError: No valid models for this phoneme sequence")
-            return
+            return "No valid models for this phoneme sequence", None, None, None
         
-        # Create combined HMM and decode
         combined_hmm = CombinedHMM(valid_models)
         pred_states = combined_hmm.decode(mfcc_features)
-        
-        # Map states back to phonemes
         pred_phoneme_indices = combined_hmm.map_states_to_phonemes(pred_states, valid_phoneme_indices)
         
-        # Remove consecutive duplicates
         reduced_predictions = []
         for i in range(len(pred_phoneme_indices)):
             if i == 0 or pred_phoneme_indices[i] != pred_phoneme_indices[i-1]:
                 reduced_predictions.append(pred_phoneme_indices[i])
         
-        # Trim or extend predictions to match true sequence length
         pred_phoneme_indices_trimmed = reduced_predictions[:len(valid_phoneme_indices)]
         while len(pred_phoneme_indices_trimmed) < len(valid_phoneme_indices):
             pred_phoneme_indices_trimmed.append(
                 pred_phoneme_indices_trimmed[-1] if pred_phoneme_indices_trimmed else -1
             )
         
-        # Print the predicted phoneme sequence
-        print("\nPredicted phoneme sequence:")
         predicted_phonemes = [index_to_phoneme.get(idx, f"Unknown-{idx}") for idx in pred_phoneme_indices_trimmed]
-        print(" ".join(predicted_phonemes))
         
-        # Calculate and print accuracy
         correct = sum(1 for i in range(len(valid_phoneme_indices)) 
                     if i < len(pred_phoneme_indices_trimmed) and valid_phoneme_indices[i] == pred_phoneme_indices_trimmed[i])
         accuracy = (correct / len(valid_phoneme_indices)) * 100 if valid_phoneme_indices else 0
         
-        print(f"\nAccuracy: {accuracy:.2f}% ({correct}/{len(valid_phoneme_indices)} phonemes correct)")
-        
+        return actual_phonemes, predicted_phonemes, accuracy, None
+
     except Exception as e:
-        print(f"Error evaluating utterance {utterance_index}: {str(e)}")
         import traceback
-        traceback.print_exc()
+        return None, None, None, traceback.format_exc()
 
 
 # ================ MAIN EXECUTION ================
 
-# Paths
-mfcc_path = "mfcc_with_phoneme_indices.json"
-phoneme_map_path = "phoneme_to_index.json"
-models_dir = "hmm_models"
+if __name__ == "__main__":
+    # Paths
+    mfcc_path = "mfcc_with_phoneme_indices.json"
+    phoneme_map_path = "phoneme_to_index.json"
+    models_dir = "hmm_models"
 
-# Training
-print("=== TRAINING PHONEME HMMs ===")
-phoneme_models, index_to_phoneme = train_phoneme_hmms(mfcc_path, phoneme_map_path, models_dir)
+    # Training
+    print("=== TRAINING PHONEME HMMs ===")
+    phoneme_models, index_to_phoneme = train_phoneme_hmms(mfcc_path, phoneme_map_path, models_dir)
 
-# Testing
-print("\n=== TESTING PHONEME RECOGNITION ===")
-# If models were just trained, use them directly
-if not phoneme_models:
-    print("No phoneme models found in memory. Loading from disk.")
-    phoneme_models = load_phoneme_models(models_dir)
+    # Testing
+    print("\n=== TESTING PHONEME RECOGNITION ===")
+    if not phoneme_models:
+        print("No phoneme models found in memory. Loading from disk.")
+        phoneme_models = load_phoneme_models(models_dir)
     
-# Ensure models are loaded or trained successfully before testing
-if phoneme_models:
-    test_phoneme_recognition(mfcc_path, phoneme_map_path, phoneme_models)
-else:
-    print("Error: No phoneme models available for testing.")
+    if phoneme_models:
+        test_phoneme_recognition(mfcc_path, phoneme_map_path, phoneme_models)
+    else:
+        print("Error: No phoneme models available for testing.")
+    
+    # Example of testing multiple utterances
+    def evaluate_multiple_utterances(n, mfcc_path=mfcc_path, phoneme_map_path=phoneme_map_path, models_dir=models_dir):
+        for i in range(n):
+            actual_phonemes, predicted_phonemes, accuracy, error = evaluate_utterance(i, mfcc_path, phoneme_map_path, phoneme_models)
+            
+            if error:
+                print(f"Error evaluating utterance {i}: {error}")
+            else:
+                print(f"=== Utterance {i} ===")
+                print(f"Actual Phonemes : {actual_phonemes}")
+                print(f"Predicted Phonemes : {predicted_phonemes}")
+                print(f"Accuracy : {accuracy:.2f}%")
+                print("----------------------------")
 
-def evaluate_multiple_utterances(n, mfcc_path=mfcc_path, phoneme_map_path=phoneme_map_path, models_dir=models_dir):
-    for i in range(n):
-        evaluate_utterance(i, mfcc_path, phoneme_map_path, phoneme_models)    
-
-evaluate_multiple_utterances(5)
+    evaluate_multiple_utterances(5)

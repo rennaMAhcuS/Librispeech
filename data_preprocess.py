@@ -16,7 +16,6 @@ from glob import glob
 from scipy.io.wavfile import read
 from python_speech_features import mfcc
 from g2p_en import G2p
-from collections import defaultdict
 import nltk
 
 # === NLTK Setup ===

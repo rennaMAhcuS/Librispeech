@@ -176,5 +176,4 @@ cython_debug/
 # WSL
 *Zone.Identifier
 
-kaldi/
-train-clean-100.tar.gz
+# Datasets

@@ -7,9 +7,6 @@ import json
 import random
 import re
 import numpy as np
-import matplotlib.pyplot as plt
-import librosa
-import librosa.display
 import soundfile as sf
 from tqdm import tqdm
 from glob import glob
@@ -80,21 +77,6 @@ def copy_transcripts(source_root, wav_root):
 def extract_mfcc(wav_path, num_mfcc=13):
     sr, signal = read(wav_path)
     return mfcc(signal, sr, numcep=num_mfcc)
-
-# === Visualization (optional) ===
-def visualize_waveform_and_mfcc(wav_path):
-    signal, sr = librosa.load(wav_path, sr=None)
-    mfccs = librosa.feature.mfcc(signal, sr=sr, n_mfcc=13)
-    plt.figure(figsize=(12, 4))
-    plt.subplot(1, 2, 1)
-    plt.plot(signal)
-    plt.title("Waveform")
-    plt.subplot(1, 2, 2)
-    librosa.display.specshow(mfccs, sr=sr, x_axis='time')
-    plt.colorbar()
-    plt.title("MFCCs")
-    plt.tight_layout()
-    plt.show()
 
 # === Select ~1 hour of audio ===
 def select_files(wav_files, target_sec=3600):

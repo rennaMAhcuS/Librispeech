@@ -8,3 +8,8 @@ streamlit run app.py  # Runs the app for an interactive demo.
 ```
 
 For more info about the project, refer the [**presentation**](Presentation.pdf).
+
+## People who studied about the dataset and the methods mentioned in the paper (us)
+
+- **Mohana Evuri**
+- **B Abhinav**
